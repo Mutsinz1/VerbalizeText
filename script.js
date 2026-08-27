@@ -9,6 +9,18 @@ const dialog = document.getElementById("text-box");
 const unsupported = document.getElementById("unsupported");
 const statusEl = document.getElementById("status");
 
+const editBoardButton = document.getElementById("edit-board");
+const boardTools = document.getElementById("board-tools");
+const addPhraseButton = document.getElementById("add-phrase");
+const resetBoardButton = document.getElementById("reset-board");
+const boardEmpty = document.getElementById("board-empty");
+const phraseDialog = document.getElementById("phrase-dialog");
+const phraseTitle = document.getElementById("phrase-title");
+const phraseTextInput = document.getElementById("phrase-text");
+const phraseIconInput = document.getElementById("phrase-icon");
+const phraseError = document.getElementById("phrase-error");
+const phraseSave = document.getElementById("phrase-save");
+
 const readingEl = document.getElementById("reading");
 const readingLabel = document.getElementById("reading-label");
 const textLabel = document.getElementById("text-label");
@@ -32,20 +44,23 @@ const SUPPORTED =
 
 const STORAGE_KEY = "verbalize-text:settings";
 
-const data = [
-  { image: "drink", text: "I'm Thirsty" },
-  { image: "food", text: "I'm Hungry" },
-  { image: "tired", text: "I'm Tired" },
-  { image: "hurt", text: "I'm Hurt" },
-  { image: "happy", text: "I'm Happy" },
-  { image: "angry", text: "I'm Angry" },
-  { image: "sad", text: "I'm Sad" },
-  { image: "scared", text: "I'm Scared" },
-  { image: "outside", text: "I Want To Go Outside" },
-  { image: "home", text: "I Want To Go Home" },
-  { image: "school", text: "I Want To Go To School" },
-  { image: "grandma", text: "I Want To Go To Grandmas" },
+const DEFAULT_PHRASES = [
+  { text: "I'm Thirsty", image: "drink" },
+  { text: "I'm Hungry", image: "food" },
+  { text: "I'm Tired", image: "tired" },
+  { text: "I'm Hurt", image: "hurt" },
+  { text: "I'm Happy", image: "happy" },
+  { text: "I'm Angry", image: "angry" },
+  { text: "I'm Sad", image: "sad" },
+  { text: "I'm Scared", image: "scared" },
+  { text: "I Want To Go Outside", image: "outside" },
+  { text: "I Want To Go Home", image: "home" },
+  { text: "I Want To Go To School", image: "school" },
+  { text: "I Want To Go To Grandmas", image: "grandma" },
 ];
+
+const PHRASES_KEY = "verbalize-text:phrases";
+const DEFAULT_ICON = "💬";
 
 // --- Settings persistence -------------------------------------------------
 // localStorage throws in some privacy modes, so every access is guarded.
@@ -78,26 +93,171 @@ const settings = loadSettings();
 
 // --- Phrase board ---------------------------------------------------------
 
-function createBox({ image, text }) {
-  const box = document.createElement("button");
-  box.type = "button";
-  box.className = "box";
+let phrases = loadPhrases();
+let editing = false;
 
-  const img = document.createElement("img");
-  img.src = `img/${image}.jpg`;
-  img.alt = "";
-  img.loading = "lazy";
-
-  const info = document.createElement("span");
-  info.className = "info";
-  info.textContent = text;
-
-  box.append(img, info);
-  box.addEventListener("click", () => handleSpeech(text, box));
-  board.appendChild(box);
+function loadPhrases() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PHRASES_KEY));
+    // Nothing saved yet means a first visit; a saved empty list means the
+    // board was deliberately cleared, so don't resurrect the defaults.
+    if (!Array.isArray(saved)) return [...DEFAULT_PHRASES];
+    // Drop anything malformed rather than rendering a broken card.
+    return saved.filter((p) => p && typeof p.text === "string" && p.text.trim());
+  } catch {
+    return [...DEFAULT_PHRASES];
+  }
 }
 
-data.forEach(createBox);
+function savePhrases() {
+  try {
+    localStorage.setItem(PHRASES_KEY, JSON.stringify(phrases));
+  } catch {
+    // Persistence is a convenience; ignore quota or privacy-mode failures.
+  }
+}
+
+function cardFace(phrase) {
+  if (phrase.image) {
+    const img = document.createElement("img");
+    img.src = `img/${phrase.image}.jpg`;
+    img.alt = "";
+    img.loading = "lazy";
+    return img;
+  }
+  const icon = document.createElement("span");
+  icon.className = "icon";
+  icon.setAttribute("aria-hidden", "true");
+  icon.textContent = phrase.icon || DEFAULT_ICON;
+  return icon;
+}
+
+function iconButton(label, symbol, onClick, disabled) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "card-action";
+  button.setAttribute("aria-label", label);
+  button.textContent = symbol;
+  button.disabled = !!disabled;
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+function createCard(phrase, index) {
+  const info = document.createElement("span");
+  info.className = "info";
+  info.textContent = phrase.text;
+
+  if (!editing) {
+    const box = document.createElement("button");
+    box.type = "button";
+    box.className = "box";
+    box.append(cardFace(phrase), info);
+    box.addEventListener("click", () => handleSpeech(phrase.text, box));
+    if (!SUPPORTED) box.disabled = true;
+    return box;
+  }
+
+  const box = document.createElement("div");
+  box.className = "box box-editing";
+  box.append(cardFace(phrase), info);
+
+  const actions = document.createElement("div");
+  actions.className = "card-actions";
+  actions.append(
+    iconButton(`Move ${phrase.text} earlier`, "◀", () => movePhrase(index, -1), index === 0),
+    iconButton(`Edit ${phrase.text}`, "✎", () => openPhraseDialog(index)),
+    iconButton(`Remove ${phrase.text}`, "✕", () => removePhrase(index)),
+    iconButton(`Move ${phrase.text} later`, "▶", () => movePhrase(index, 1), index === phrases.length - 1)
+  );
+  box.append(actions);
+  return box;
+}
+
+function renderBoard() {
+  board.replaceChildren(...phrases.map(createCard));
+  boardEmpty.hidden = phrases.length > 0;
+  board.setAttribute(
+    "aria-label",
+    editing ? "Quick phrases, editing" : "Quick phrases"
+  );
+}
+
+function movePhrase(index, delta) {
+  const target = index + delta;
+  if (target < 0 || target >= phrases.length) return;
+  [phrases[index], phrases[target]] = [phrases[target], phrases[index]];
+  savePhrases();
+  renderBoard();
+  // Keep the moved card's control focused so repeated presses keep working.
+  const moved = board.children[target];
+  const control = moved && moved.querySelector(
+    delta < 0 ? '[aria-label^="Move"]' : '[aria-label$="later"]'
+  );
+  if (control && !control.disabled) control.focus();
+}
+
+function removePhrase(index) {
+  phrases.splice(index, 1);
+  savePhrases();
+  renderBoard();
+  const next = board.children[Math.min(index, board.children.length - 1)];
+  const control = next && next.querySelector(".card-action");
+  if (control) control.focus();
+  else addPhraseButton.focus();
+}
+
+// --- Add / edit dialog ----------------------------------------------------
+
+let editingIndex = null;
+
+function openPhraseDialog(index) {
+  editingIndex = index ?? null;
+  const existing = index == null ? null : phrases[index];
+  phraseTitle.textContent = existing ? "Edit phrase" : "Add a phrase";
+  phraseTextInput.value = existing ? existing.text : "";
+  phraseIconInput.value = existing && !existing.image ? existing.icon || "" : "";
+  phraseError.hidden = true;
+  phraseDialog.showModal();
+  phraseTextInput.focus();
+}
+
+function savePhraseFromDialog() {
+  const text = phraseTextInput.value.trim();
+  if (!text) {
+    phraseError.textContent = "Give the phrase some words.";
+    phraseError.hidden = false;
+    phraseTextInput.focus();
+    return;
+  }
+
+  const icon = phraseIconInput.value.trim();
+  if (editingIndex == null) {
+    phrases.push({ text, icon: icon || DEFAULT_ICON });
+  } else {
+    const existing = phrases[editingIndex];
+    // Editing the text of a default keeps its picture; setting an icon
+    // replaces it.
+    phrases[editingIndex] = icon
+      ? { text, icon }
+      : { ...existing, text };
+  }
+
+  savePhrases();
+  renderBoard();
+  phraseDialog.close();
+  addPhraseButton.focus();
+}
+
+function setEditing(next) {
+  editing = next;
+  editBoardButton.textContent = editing ? "Done editing" : "Edit board";
+  editBoardButton.setAttribute("aria-pressed", String(editing));
+  boardTools.hidden = !editing;
+  renderBoard();
+}
+
+renderBoard();
 
 // --- Speech ---------------------------------------------------------------
 
@@ -467,6 +627,28 @@ stopButtons.forEach((button) =>
   button.addEventListener("click", () => stopSpeech("Stopped."))
 );
 
+editBoardButton.addEventListener("click", () => setEditing(!editing));
+addPhraseButton.addEventListener("click", () => openPhraseDialog(null));
+phraseSave.addEventListener("click", savePhraseFromDialog);
+
+phraseTextInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    savePhraseFromDialog();
+  }
+});
+
+phraseDialog.addEventListener("click", (e) => {
+  if (e.target === phraseDialog) phraseDialog.close();
+});
+
+resetBoardButton.addEventListener("click", () => {
+  phrases = [...DEFAULT_PHRASES];
+  savePhrases();
+  renderBoard();
+  addPhraseButton.focus();
+});
+
 // Abandon the reading view and go back to editing, without touching playback
 // if it has already finished.
 dialogEdit.addEventListener("click", () => {
@@ -488,7 +670,5 @@ if (SUPPORTED) {
       button.disabled = true;
     }
   );
-  board.querySelectorAll(".box").forEach((box) => {
-    box.disabled = true;
-  });
+  editBoardButton.disabled = true;
 }

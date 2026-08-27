@@ -10,7 +10,10 @@ No install, no sign-up — it runs entirely in your browser.
 
 ## 🚀 Features
 
-- **Phrase board**: Twelve one-tap cards for common everyday phrases.
+- **Your own phrase board**: Starts with twelve one-tap cards for everyday
+  phrases, and **Edit board** lets you add, rename, reorder and remove them.
+  Custom phrases carry an emoji of your choosing. Your board is saved in the
+  browser and is there next time.
 - **Type your own text**: Enter anything you like and have it read aloud.
 - **Voice options**: Choose from every voice your browser offers, across
   accents and languages.
