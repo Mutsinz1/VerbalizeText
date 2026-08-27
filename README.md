@@ -70,6 +70,28 @@ To run it yourself:
 
 No build step, no dependencies.
 
+| File | What lives there |
+| --- | --- |
+| `index.html` | Markup |
+| `style.css` | Styling |
+| `lib.js` | Pure logic: chunking, word-offset tracking, stored-phrase validation |
+| `script.js` | Everything that touches the DOM or the speech engine |
+| `test.js` | Test suite for `lib.js` |
+
+`lib.js` is deliberately a plain script rather than an ES module, so
+`index.html` still opens straight from disk — `file://` blocks module loading.
+
+## 🧪 Tests
+
+```bash
+node test.js
+```
+
+Covers the parts where a mistake is quiet rather than obvious: splitting text
+into chunks, mapping a chunk-relative speech offset back onto the full
+passage (get this wrong and the *wrong* word highlights), and validating
+phrases restored from browser storage. No framework and nothing to install.
+
 ## 🖼️ Credits
 
 Phrase-card images are from Brad Traversy's
