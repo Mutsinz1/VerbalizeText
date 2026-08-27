@@ -45,10 +45,26 @@
         <button id="stop" class="btn btn-ghost" type="button" disabled>
           Stop
         </button>
+        <button id="edit-board" class="btn btn-ghost" type="button">
+          Edit board
+        </button>
       </div>
 
       <p id="status" class="status" role="status" aria-live="polite"></p>
     </header>
+
+    <div class="board-tools container" id="board-tools" hidden>
+      <button id="add-phrase" class="btn btn-primary" type="button">
+        + Add phrase
+      </button>
+      <button id="reset-board" class="btn btn-ghost" type="button">
+        Reset to defaults
+      </button>
+    </div>
+
+    <p id="board-empty" class="banner" hidden>
+      Your board is empty. Use <strong>Edit board</strong> to add a phrase.
+    </p>
 
     <main id="board" class="board" aria-label="Quick phrases" tabindex="-1"></main>
 
@@ -107,6 +123,34 @@
           Edit text
         </button>
       </div>
+    </dialog>
+
+    <dialog id="phrase-dialog" class="text-box" aria-labelledby="phrase-title">
+      <form method="dialog" class="text-box-head">
+        <h2 id="phrase-title">Add a phrase</h2>
+        <button class="close" type="submit" aria-label="Close">&times;</button>
+      </form>
+
+      <label class="field-label" for="phrase-text">Phrase</label>
+      <input id="phrase-text" type="text" maxlength="60" placeholder="I'm Thirsty" />
+
+      <label class="field-label" for="phrase-icon">Icon</label>
+      <input
+        id="phrase-icon"
+        type="text"
+        maxlength="4"
+        placeholder="💬"
+        aria-describedby="phrase-icon-hint"
+      />
+      <p class="hint" id="phrase-icon-hint">
+        An emoji shown on the card. Leave blank for 💬.
+      </p>
+
+      <p class="field-error" id="phrase-error" role="alert" hidden></p>
+
+      <button class="btn btn-primary btn-block" id="phrase-save" type="button">
+        Save phrase
+      </button>
     </dialog>
 
     <noscript>
