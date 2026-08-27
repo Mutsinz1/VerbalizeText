@@ -48,9 +48,14 @@ To run it yourself:
 4. Pick a voice and adjust speed, pitch, and volume as needed.
 5. Click **Read aloud** to hear your text.
 
-> Speech synthesis needs a modern browser. Chrome, Edge, and Safari are
-> supported; if the API is unavailable the app says so instead of failing
-> silently.
+> Speech synthesis needs a modern browser. If the API is unavailable the app
+> says so rather than failing silently.
+>
+> Tested on Chrome (macOS). It should work in any browser that implements the
+> Web Speech API, but other browsers have not been verified — in particular,
+> word-level highlighting depends on the `boundary` event, which some engines
+> do not emit. Where it is missing, the whole sentence being spoken is
+> highlighted instead of the individual word.
 
 ## ⌨️ Accessibility
 
@@ -86,6 +91,9 @@ No build step, no dependencies.
 ```bash
 node test.js
 ```
+
+Also run on every push and pull request by
+[GitHub Actions](.github/workflows/test.yml).
 
 Covers the parts where a mistake is quiet rather than obvious: splitting text
 into chunks, mapping a chunk-relative speech offset back onto the full
