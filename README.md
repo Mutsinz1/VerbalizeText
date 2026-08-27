@@ -13,6 +13,11 @@ accessibility, presentations, or simply enjoying your written content aloud.
 - **Adjustable speed, pitch and volume**: Tune the delivery from slow narration
   to quick playback.
 - **Playback controls**: Pause, resume, or stop speech at any time.
+- **Handles long text**: Paragraphs are split at sentence boundaries and
+  spoken back to back, with progress shown as "Speaking… (2 of 6)". This also
+  guards against the length limit some browsers and voices impose on a single
+  long utterance, and lets Stop take effect promptly rather than waiting out
+  the whole passage.
 - **Remembers your settings**: Your chosen voice and sliders persist between
   visits.
 - **Keyboard and screen-reader friendly**: Every control is reachable by Tab,
