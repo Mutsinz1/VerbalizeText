@@ -124,13 +124,142 @@ function setStatus(message) {
 }
 
 function updateTransport() {
-  const speaking = SUPPORTED && speechSynthesis.speaking;
-  stopButton.disabled = !speaking;
-  pauseButton.disabled = !speaking;
-  pauseButton.textContent = SUPPORTED && speechSynthesis.paused ? "Resume" : "Pause";
+  // Between chunks speechSynthesis.speaking briefly goes false, so the queue
+  // counts as active too — otherwise the controls flicker mid-paragraph.
+  const active = SUPPORTED && (speechSynthesis.speaking || queuePending());
+  stopButton.disabled = !active;
+  pauseButton.disabled = !active;
+  pauseButton.textContent =
+    active && speechSynthesis.paused ? "Resume" : "Pause";
 }
 
 let pendingSpeak = null;
+
+// Chrome silently stops speaking after roughly 15 seconds of a single
+// utterance. Splitting the text into short chunks and speaking them back to
+// back keeps every utterance well under that ceiling.
+let queue = [];
+let queueIndex = 0;
+// cancel() makes Chrome fire "end" on the utterance it kills, which would
+// otherwise look identical to a chunk finishing and advance the queue. Every
+// run carries a token, and stale events are ignored.
+let speechRun = 0;
+
+function queuePending() {
+  return queueIndex < queue.length;
+}
+
+// Roughly 12 characters a second at rate 1, so this targets ~10s per chunk.
+function chunkSize() {
+  const rate = Number(rateInput.value) || 1;
+  return Math.min(220, Math.max(60, Math.round(120 * rate)));
+}
+
+function splitLongSentence(sentence, maxChars) {
+  const chunks = [];
+  let line = "";
+
+  sentence
+    .split(/\s+/)
+    .filter(Boolean)
+    .forEach((word) => {
+      if (line && `${line} ${word}`.length > maxChars) {
+        chunks.push(line);
+        line = word;
+      } else {
+        line = line ? `${line} ${word}` : word;
+      }
+    });
+
+  if (line) chunks.push(line);
+  return chunks;
+}
+
+function splitIntoChunks(text, maxChars) {
+  const sentences = text.match(/[^.!?\n]+[.!?]*\s*|\n+/g) || [text];
+  const chunks = [];
+  let current = "";
+
+  sentences.forEach((sentence) => {
+    if ((current + sentence).trim().length <= maxChars) {
+      current += sentence;
+      return;
+    }
+
+    if (current.trim()) chunks.push(current.trim());
+
+    if (sentence.trim().length <= maxChars) {
+      current = sentence;
+    } else {
+      // A single sentence longer than a chunk: fall back to word boundaries.
+      chunks.push(...splitLongSentence(sentence.trim(), maxChars));
+      current = "";
+    }
+  });
+
+  if (current.trim()) chunks.push(current.trim());
+  return chunks.filter(Boolean);
+}
+
+function speakingStatus() {
+  return queue.length > 1
+    ? `Speaking… (${queueIndex + 1} of ${queue.length})`
+    : "Speaking…";
+}
+
+function stopSpeech(message) {
+  speechRun += 1;
+  queue = [];
+  queueIndex = 0;
+  clearTimeout(pendingSpeak);
+  speechSynthesis.cancel();
+  // cancel() while paused leaves the engine paused in Chrome, which would
+  // silently swallow whatever is spoken next.
+  if (speechSynthesis.paused) speechSynthesis.resume();
+  setStatus(message);
+  updateTransport();
+}
+
+function speakChunk(run) {
+  if (run !== speechRun) return;
+
+  if (!queuePending()) {
+    setStatus("");
+    updateTransport();
+    return;
+  }
+
+  const utterance = new SpeechSynthesisUtterance(queue[queueIndex]);
+  utterance.voice = selectedVoice();
+  utterance.rate = Number(rateInput.value);
+  utterance.pitch = Number(pitchInput.value);
+  utterance.volume = Number(volumeInput.value);
+
+  utterance.addEventListener("start", () => {
+    if (run !== speechRun) return;
+    setStatus(speakingStatus());
+    updateTransport();
+  });
+
+  utterance.addEventListener("end", () => {
+    if (run !== speechRun) return;
+    queueIndex += 1;
+    speakChunk(run);
+  });
+
+  utterance.addEventListener("error", (e) => {
+    if (run !== speechRun) return;
+    // "interrupted"/"canceled" just mean we replaced this utterance on purpose.
+    if (e.error !== "interrupted" && e.error !== "canceled") {
+      queue = [];
+      queueIndex = 0;
+      setStatus("Sorry, that couldn't be spoken.");
+    }
+    updateTransport();
+  });
+
+  speechSynthesis.speak(utterance);
+}
 
 function speak(text) {
   if (!SUPPORTED) return;
@@ -144,33 +273,15 @@ function speak(text) {
 
   // Drop anything already queued, including a speak still waiting on the
   // timeout below — otherwise rapid taps stack up a backlog.
-  clearTimeout(pendingSpeak);
-  speechSynthesis.cancel();
+  stopSpeech("");
 
-  const utterance = new SpeechSynthesisUtterance(trimmed);
-  utterance.voice = selectedVoice();
-  utterance.rate = Number(rateInput.value);
-  utterance.pitch = Number(pitchInput.value);
-  utterance.volume = Number(volumeInput.value);
-
-  utterance.addEventListener("start", () => {
-    setStatus("Speaking…");
-    updateTransport();
-  });
-  utterance.addEventListener("end", () => {
-    setStatus("");
-    updateTransport();
-  });
-  utterance.addEventListener("error", (e) => {
-    // "interrupted"/"canceled" just mean we replaced this utterance on purpose.
-    if (e.error !== "interrupted" && e.error !== "canceled") {
-      setStatus("Sorry, that couldn't be spoken.");
-    }
-    updateTransport();
-  });
+  const run = speechRun;
+  queue = splitIntoChunks(trimmed, chunkSize());
+  queueIndex = 0;
+  updateTransport();
 
   // Chrome drops utterances queued in the same tick as cancel(), so yield first.
-  pendingSpeak = setTimeout(() => speechSynthesis.speak(utterance), 0);
+  pendingSpeak = setTimeout(() => speakChunk(run), 0);
 }
 
 function handleSpeech(text, box) {
@@ -228,9 +339,7 @@ pauseButton.addEventListener("click", () => {
 });
 
 stopButton.addEventListener("click", () => {
-  speechSynthesis.cancel();
-  setStatus("Stopped.");
-  updateTransport();
+  stopSpeech("Stopped.");
 });
 
 // --- Boot -----------------------------------------------------------------
