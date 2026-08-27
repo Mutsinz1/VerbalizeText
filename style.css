@@ -308,6 +308,88 @@ h1 {
 
 /* Phrase board ------------------------------------------------------------*/
 
+.board-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  padding-top: 0;
+}
+
+.hint {
+  font-size: 0.85rem;
+  margin: 0.35rem 0 0;
+  opacity: 0.8;
+}
+
+.field-error {
+  background-color: #fdecef;
+  color: #8a1030;
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  margin: 0.75rem 0 0;
+  font-size: 0.9rem;
+}
+
+.text-box input[type="text"] {
+  border: 1px var(--border-color) solid;
+  border-radius: var(--border-radius);
+  color: var(--deep-color);
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 0.75rem 1rem;
+  width: 100%;
+}
+
+/* A card with an emoji instead of a photograph. */
+.box .icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  font-size: 4.5rem;
+  line-height: 1;
+  background-color: var(--secondary-color);
+}
+
+.box-editing {
+  cursor: default;
+}
+
+.box-editing:hover {
+  transform: none;
+}
+
+.card-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.25rem;
+  padding: 0.5rem;
+  background-color: var(--main-color);
+  border-top: 1px solid var(--border-color);
+}
+
+.card-action {
+  background-color: transparent;
+  color: var(--light-color);
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 0.5rem 0;
+  cursor: pointer;
+}
+
+.card-action:hover:not(:disabled) {
+  background-color: var(--secondary-color);
+}
+
+.card-action:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+
 .board {
   display: grid;
   grid-template-columns: 1fr;
