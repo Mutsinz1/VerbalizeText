@@ -22,6 +22,9 @@ No install, no sign-up — it runs entirely in your browser.
   guards against the length limit some browsers and voices impose on a single
   long utterance, and lets Stop take effect promptly rather than waiting out
   the whole passage.
+- **Follow along as it reads**: While reading your own text, the current word
+  is highlighted and the passage scrolls to keep up, with the active sentence
+  shaded behind it.
 - **Remembers your settings**: Your chosen voice and sliders persist between
   visits.
 - **Keyboard and screen-reader friendly**: Every control is reachable by Tab,

@@ -63,8 +63,14 @@
         <option value="">Loading voices&hellip;</option>
       </select>
 
-      <label class="field-label" for="text">Text to read</label>
+      <label class="field-label" for="text" id="text-label">Text to read</label>
       <textarea id="text" placeholder="Enter text to read&hellip;"></textarea>
+
+      <!-- Shown in place of the textarea while reading, to follow the words.
+           aria-hidden because the same text is already available in the
+           textarea, and a screen reader has its own reading position. -->
+      <p class="field-label" id="reading-label" hidden>Reading</p>
+      <div id="reading" class="reading" aria-hidden="true" hidden></div>
 
       <div class="sliders">
         <div class="slider">
@@ -87,6 +93,20 @@
       <button class="btn btn-primary btn-block" id="read" type="button">
         Read aloud
       </button>
+
+      <!-- The dialog is modal, so the controls in the header are inert while
+           it is open. Reading needs its own transport. -->
+      <div class="dialog-transport" id="dialog-transport" hidden>
+        <button class="btn btn-primary" id="dialog-pause" type="button">
+          Pause
+        </button>
+        <button class="btn btn-outline" id="dialog-stop" type="button">
+          Stop
+        </button>
+        <button class="btn btn-outline" id="dialog-edit" type="button">
+          Edit text
+        </button>
+      </div>
     </dialog>
 
     <noscript>
