@@ -60,7 +60,6 @@ const DEFAULT_PHRASES = [
 ];
 
 const PHRASES_KEY = "verbalize-text:phrases";
-const DEFAULT_ICON = "💬";
 
 // --- Settings persistence -------------------------------------------------
 // localStorage throws in some privacy modes, so every access is guarded.
@@ -98,12 +97,10 @@ let editing = false;
 
 function loadPhrases() {
   try {
-    const saved = JSON.parse(localStorage.getItem(PHRASES_KEY));
     // Nothing saved yet means a first visit; a saved empty list means the
     // board was deliberately cleared, so don't resurrect the defaults.
-    if (!Array.isArray(saved)) return [...DEFAULT_PHRASES];
-    // Drop anything malformed rather than rendering a broken card.
-    return saved.filter((p) => p && typeof p.text === "string" && p.text.trim());
+    const saved = normalizePhrases(JSON.parse(localStorage.getItem(PHRASES_KEY)));
+    return saved || [...DEFAULT_PHRASES];
   } catch {
     return [...DEFAULT_PHRASES];
   }
@@ -324,83 +321,8 @@ function queuePending() {
   return queueIndex < queue.length;
 }
 
-// Roughly 12 characters a second at rate 1, so this targets ~10s per chunk.
 function chunkSize() {
-  const rate = Number(rateInput.value) || 1;
-  return Math.min(220, Math.max(60, Math.round(120 * rate)));
-}
-
-function splitLongSentence(sentence, maxChars) {
-  const chunks = [];
-  let line = "";
-
-  sentence
-    .split(/\s+/)
-    .filter(Boolean)
-    .forEach((word) => {
-      if (line && `${line} ${word}`.length > maxChars) {
-        chunks.push(line);
-        line = word;
-      } else {
-        line = line ? `${line} ${word}` : word;
-      }
-    });
-
-  if (line) chunks.push(line);
-  return chunks;
-}
-
-function splitIntoChunks(text, maxChars) {
-  const sentences = text.match(/[^.!?\n]+[.!?]*\s*|\n+/g) || [text];
-  const chunks = [];
-  let current = "";
-
-  sentences.forEach((sentence) => {
-    if ((current + sentence).trim().length <= maxChars) {
-      current += sentence;
-      return;
-    }
-
-    if (current.trim()) chunks.push(current.trim());
-
-    if (sentence.trim().length <= maxChars) {
-      current = sentence;
-    } else {
-      // A single sentence longer than a chunk: fall back to word boundaries.
-      chunks.push(...splitLongSentence(sentence.trim(), maxChars));
-      current = "";
-    }
-  });
-
-  if (current.trim()) chunks.push(current.trim());
-  return chunks.filter(Boolean);
-}
-
-// --- Word tracking --------------------------------------------------------
-// Set when reading from the textarea: the full text plus where each chunk
-// starts inside it, so a per-chunk boundary offset maps back to the whole.
-let tracking = null;
-
-function buildTracking(fullText, chunks) {
-  const offsets = [];
-  let cursor = 0;
-
-  chunks.forEach((chunk) => {
-    // Chunks are substrings of the original, so this locates them exactly.
-    // splitLongSentence collapses runs of whitespace, so a chunk can fail to
-    // match; fall back to the cursor rather than highlighting the wrong words.
-    const found = fullText.indexOf(chunk, cursor);
-    const start = found === -1 ? cursor : found;
-    offsets.push(start);
-    cursor = start + chunk.length;
-  });
-
-  return { full: fullText, offsets };
-}
-
-function wordEndFrom(text, start) {
-  const match = text.slice(start).match(/^\S+/);
-  return start + (match ? match[0].length : 1);
+  return chunkSizeFor(rateInput.value);
 }
 
 function renderReading(chunkStart, chunkEnd, wordStart, wordEnd) {
