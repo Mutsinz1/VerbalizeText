@@ -36,7 +36,12 @@
   }
 
   function splitIntoChunks(text, maxChars) {
-    const sentences = text.match(/[^.!?\n]+[.!?]*\s*|\n+/g) || [text];
+    // Every alternative must be able to match, or the segment is dropped and
+    // that text is never spoken. The first branch allows an empty run before
+    // the terminator so that punctuation on its own — an ellipsis on its own
+    // line, say — is still a segment.
+    const sentences =
+      text.match(/[^.!?\n]*[.!?]+\s*|[^.!?\n]+|\n+/g) || [text];
     const chunks = [];
     let current = "";
 
@@ -58,7 +63,7 @@
     });
 
     if (current.trim()) chunks.push(current.trim());
-    return chunks.filter(Boolean);
+    return chunks;
   }
 
   // Where each chunk starts inside the full text, so a boundary offset that is

@@ -61,6 +61,47 @@ test("splits at sentence boundaries without exceeding the limit", () => {
   chunks.forEach((c) => assert.ok(c.length <= 120, `chunk too long: ${c.length}`));
 });
 
+// The sentence regex used to require a non-punctuation character in every
+// segment, so punctuation standing on its own matched nothing and that text
+// was silently never spoken. An ellipsis on its own line disappeared.
+test("punctuation-only segments are not dropped", () => {
+  const cases = [
+    "Hello.\n...\nWorld.",
+    "Wait. . Next.",
+    "Line one.\n?\nLine two.",
+    "three!one  a!\n.abc",
+    "...",
+    "?!",
+  ];
+  cases.forEach((text) => {
+    const rejoined = splitIntoChunks(text, 60).join(" ").replace(/\s+/g, " ").trim();
+    const source = text.replace(/\s+/g, " ").trim();
+    assert.equal(rejoined, source, `text lost from ${JSON.stringify(text)}`);
+  });
+});
+
+// A newline is the only separator between two unterminated lines. If the
+// segmenter swallows it, the lines are concatenated and "abc\ndef" is spoken
+// as "abcdef". Comparing with whitespace normalised would hide this, so this
+// checks the word tokens themselves.
+test("newlines keep separate lines apart", () => {
+  const cases = ["abc\ndef", "one two\nthree four", "Hello.\nthere\nworld"];
+  cases.forEach((text) => {
+    const chunks = splitIntoChunks(text, 60);
+    chunks.forEach((chunk) =>
+      assert.ok(
+        text.includes(chunk),
+        `lines ran together: ${JSON.stringify(chunk)}`
+      )
+    );
+    assert.deepEqual(
+      chunks.join(" ").split(/\s+/).filter(Boolean),
+      text.split(/\s+/).filter(Boolean),
+      `word tokens changed for ${JSON.stringify(text)}`
+    );
+  });
+});
+
 test("no text is lost when chunks are rejoined", () => {
   const text =
     "One two three four. Five six seven eight! Nine ten eleven twelve? Thirteen fourteen.";
@@ -82,11 +123,128 @@ test("handles newlines and blank lines", () => {
   chunks.forEach((c) => assert.ok(c.trim().length > 0, "no empty chunks"));
 });
 
+// splitIntoChunks used to end with a defensive .filter(Boolean). Fuzzing over
+// 250k generated inputs never produced a falsy chunk, so the filter was dead
+// code and has been removed; this asserts the property it was guarding.
 test("never emits an empty chunk", () => {
-  [".", "...", "!?", "   ", "\n\n\n", "a"].forEach((input) => {
-    splitIntoChunks(input, 60).forEach((c) =>
-      assert.ok(c.trim().length > 0, `empty chunk from ${JSON.stringify(input)}`)
+  const inputs = [
+    ".", "...", "!?", "   ", "\n\n\n", "a", "", ". . . .", "\n.\n.\n",
+    "?!?!?!", "  \n  \t ", "é", "🎧", "-", ",;-", "a.", ".a", "\n a \n",
+  ];
+  inputs.forEach((input) => {
+    [1, 5, 60, 220].forEach((size) => {
+      splitIntoChunks(input, size).forEach((c) =>
+        assert.ok(
+          c && c.trim().length > 0,
+          `empty chunk from ${JSON.stringify(input)} at size ${size}`
+        )
+      );
+    });
+  });
+});
+
+// The splitter should pack a line as full as it will go. If it started a new
+// line when a word merely *reached* the limit rather than exceeding it, every
+// chunk would come up a word short and the reading would be choppier than
+// necessary — a quiet regression, since the chunks would still be legal.
+test("words that exactly fill the limit stay on one line", () => {
+  assert.deepEqual(splitLongSentence("abc def ghi", 11), ["abc def ghi"]);
+  assert.deepEqual(splitLongSentence("aa bb cc dd", 11), ["aa bb cc dd"]);
+});
+
+test("one character over the limit does split", () => {
+  assert.deepEqual(splitLongSentence("abc def ghi", 10), ["abc def", "ghi"]);
+});
+
+test("chunks use the full width available", () => {
+  // 40 words of 4 characters: with a limit of 24, each line should hold as
+  // many whole words as fit (4 words = 19 chars, a 5th would make 24).
+  const text = Array.from({ length: 40 }, () => "word").join(" ");
+  const chunks = splitLongSentence(text, 24);
+  chunks.slice(0, -1).forEach((chunk) => {
+    assert.ok(chunk.length <= 24, "must respect the limit");
+    assert.ok(
+      chunk.length + 5 > 24,
+      `chunk "${chunk}" (${chunk.length}) had room for another word`
     );
+  });
+});
+
+// The length limit is measured on trimmed text, so a chunk left untrimmed can
+// exceed it — and leading whitespace would shift the highlighted region in the
+// reading view.
+// Same contract as the word splitter, one level up: a sentence that exactly
+// fills the remaining room should be packed in, not pushed to a new chunk.
+test("sentences that exactly fill a chunk are packed together", () => {
+  assert.deepEqual(splitIntoChunks("Ab cd. Ef gh.", 13), ["Ab cd. Ef gh."]);
+  assert.deepEqual(splitIntoChunks("Ab cd. Ef gh.", 12), ["Ab cd.", "Ef gh."]);
+});
+
+// A sentence that exactly fits must not be routed through the word splitter,
+// which collapses runs of whitespace. The chunk would stop being an exact
+// substring of the source, and buildTracking would silently fall back to
+// approximate offsets — highlighting the wrong words.
+test("chunks stay exact substrings when every sentence fits", () => {
+  // Sizes are chosen so no sentence needs the word splitter — that path
+  // collapses whitespace by design, and its approximate offsets are covered
+  // by the unlocatable-chunk test instead.
+  const cases = [
+    { text: "three!one  a!\n.abc", sizes: [7, 12, 20, 40] },
+    { text: "First   sentence.   Second   one.", sizes: [20, 40] },
+    { text: "Tight. Spaced   out.   Tight again.", sizes: [14, 20, 40] },
+  ];
+  cases.forEach(({ text, sizes }) => {
+    sizes.forEach((size) => {
+      splitIntoChunks(text, size).forEach((chunk) => {
+        assert.ok(
+          text.includes(chunk),
+          `chunk ${JSON.stringify(chunk)} is not a substring of the source ` +
+            `at size ${size} — offset tracking would degrade`
+        );
+      });
+    });
+  });
+});
+
+test("chunks carry no leading or trailing whitespace", () => {
+  const texts = [
+    "One two three. Four five six. Seven eight nine ten eleven twelve.",
+    "Line one.\n\nLine two is here.\n\n\nLine three ends it.",
+    "First   sentence   with   wide   gaps.   Second    sentence     here.",
+    "word ".repeat(50).trim(),
+    "Trailing space at the end. ",
+    "   Leading space at the start.",
+  ];
+  texts.forEach((text) => {
+    [20, 60, 120].forEach((size) => {
+      splitIntoChunks(text, size).forEach((chunk) => {
+        assert.equal(
+          chunk,
+          chunk.trim(),
+          `stray whitespace in ${JSON.stringify(chunk)} at size ${size}`
+        );
+      });
+    });
+  });
+});
+
+test("chunks respect the limit unless a single word exceeds it", () => {
+  const texts = [
+    "One two three. Four five six. Seven eight nine ten eleven twelve.",
+    "First   sentence   with   wide   gaps.   Second    sentence     here.",
+    "word ".repeat(50).trim(),
+    "Café naïve résumé façade. Emoji 🎧 and more text to force more chunks.",
+  ];
+  texts.forEach((text) => {
+    [20, 45, 60, 120].forEach((size) => {
+      splitIntoChunks(text, size).forEach((chunk) => {
+        const singleWord = !chunk.includes(" ");
+        assert.ok(
+          chunk.length <= size || singleWord,
+          `chunk of ${chunk.length} exceeds limit ${size}: ${JSON.stringify(chunk)}`
+        );
+      });
+    });
   });
 });
 
