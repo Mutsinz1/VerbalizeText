@@ -1,35 +1,68 @@
 # 🗣️ Verbalize Text
 
-**Verbalize Text** Hear your words come to life! Our easy-to-use web app converts text into natural-sounding speech using the Web Speech API. Ideal for accessibility, presentations, or simply enjoying your written content aloud.
+**Verbalize Text** — hear your words come to life. An easy-to-use web app that
+converts text into natural-sounding speech using the Web Speech API. Ideal for
+accessibility, presentations, or simply enjoying your written content aloud.
 
 ## 🚀 Features
 
-- **Easy-to-Use Interface**: Simply enter your text, select the desired voice, and click the button to hear it spoken aloud.
-- **Voice Options**: Choose from a variety of voices available in your browser, including different accents and languages.
-- **Adjustable Speed**: Control the speed of speech to suit your preference, from slow narration to quick playback.
-- **Clear Speech Output**: Uses modern speech synthesis technology for clear and accurate speech rendering.
+- **Phrase board**: Twelve one-tap cards for common everyday phrases.
+- **Type your own text**: Enter anything you like and have it read aloud.
+- **Voice options**: Choose from every voice your browser offers, across
+  accents and languages.
+- **Adjustable speed, pitch and volume**: Tune the delivery from slow narration
+  to quick playback.
+- **Playback controls**: Pause, resume, or stop speech at any time.
+- **Remembers your settings**: Your chosen voice and sliders persist between
+  visits.
+- **Keyboard and screen-reader friendly**: Every control is reachable by Tab,
+  the dialog closes with Escape, and focus is always visible.
+- **Works offline**: Images ship with the project — no external image host.
 
 ## 🛠️ How to Use
 
 1. Clone the repository:
    ```bash
-   git clone : https://github.com/Mutsinz1/VerbalizeText.git
+   git clone https://github.com/Mutsinz1/VerbalizeText.git
+   ```
 2. Open `index.html` in your browser.
-3. Type your text in the provided text area.
-4. Select a voice and adjust the speed as needed.
-5. Click the "Speak" button to hear the text read aloud.
+3. Tap any phrase card to hear it, or click **Type your own text**.
+4. Pick a voice and adjust speed, pitch, and volume as needed.
+5. Click **Read aloud** to hear your text.
 
-## 🧰  Technologies Used
+> Speech synthesis needs a modern browser. Chrome, Edge, and Safari are
+> supported; if the API is unavailable the app says so instead of failing
+> silently.
+
+## ⌨️ Accessibility
+
+- Skip link to jump straight to the phrase board.
+- Phrase cards and the close control are real buttons — usable with
+  Enter/Space, not just a mouse.
+- The text dialog uses the native `<dialog>` element, so it traps focus, closes
+  on Escape, and hides the background from assistive tech.
+- Status messages are announced through a polite live region.
+- Motion is reduced automatically when `prefers-reduced-motion` is set.
+
+## 🧰 Technologies Used
 
 - **HTML**: Structure of the application.
 - **CSS**: Styling and layout.
 - **JavaScript**: Logic for text-to-speech conversion using the Web Speech API.
 
+No build step, no dependencies.
+
+## 🖼️ Credits
+
+Phrase-card images are from Brad Traversy's
+[vanillawebprojects](https://github.com/bradtraversy/vanillawebprojects)
+speech-text-reader demo, vendored into `img/`.
+
 ## 🤝 Contributions
 
-Contributions are welcome! Feel free to fork the repository and create a pull request with your improvements.
+Contributions are welcome! Feel free to fork the repository and create a pull
+request with your improvements.
 
 ## 📜 License
 
 This project is open-source and available under the [MIT License](LICENSE).
-# VerbalizeText
