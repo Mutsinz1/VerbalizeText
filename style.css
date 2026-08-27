@@ -14,6 +14,12 @@
   box-sizing: border-box;
 }
 
+/* Several rules below set display explicitly, which would otherwise beat the
+   hidden attribute's UA style and leave "hidden" elements on screen. */
+[hidden] {
+  display: none !important;
+}
+
 body {
   background-color: var(--light-color);
   color: var(--main-color);
@@ -224,6 +230,55 @@ h1 {
   resize: vertical;
 }
 
+.reading {
+  border: 1px var(--border-color) solid;
+  border-radius: var(--border-radius);
+  background-color: var(--main-color);
+  color: var(--deep-color);
+  font-size: 1rem;
+  line-height: 1.7;
+  padding: 0.75rem 1rem;
+  height: 150px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+/* The chunk currently being spoken, so engines without word-level boundary
+   events still show roughly where the reading has reached. */
+.reading .chunk {
+  background-color: rgba(128, 13, 151, 0.1);
+  border-radius: 0.35rem;
+}
+
+.reading mark.word {
+  background-color: var(--light-color);
+  color: var(--main-color);
+  border-radius: 0.35rem;
+  padding: 0.05em 0.15em;
+}
+
+.dialog-transport {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.dialog-transport .btn {
+  padding: 0.75rem 1rem;
+}
+
+.dialog-transport #dialog-edit {
+  grid-column: 1 / -1;
+}
+
+.btn-outline {
+  background-color: transparent;
+  color: var(--light-color);
+  border-color: var(--light-color);
+}
+
 .sliders {
   display: grid;
   gap: 0.5rem;
@@ -344,5 +399,9 @@ h1 {
 
   .box:hover:not(:disabled) {
     transform: none;
+  }
+
+  .reading {
+    scroll-behavior: auto;
   }
 }

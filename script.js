@@ -9,6 +9,17 @@ const dialog = document.getElementById("text-box");
 const unsupported = document.getElementById("unsupported");
 const statusEl = document.getElementById("status");
 
+const readingEl = document.getElementById("reading");
+const readingLabel = document.getElementById("reading-label");
+const textLabel = document.getElementById("text-label");
+const dialogTransport = document.getElementById("dialog-transport");
+const dialogPause = document.getElementById("dialog-pause");
+const dialogStop = document.getElementById("dialog-stop");
+const dialogEdit = document.getElementById("dialog-edit");
+
+const pauseButtons = [pauseButton, dialogPause];
+const stopButtons = [stopButton, dialogStop];
+
 const rateInput = document.getElementById("rate");
 const pitchInput = document.getElementById("pitch");
 const volumeInput = document.getElementById("volume");
@@ -127,10 +138,14 @@ function updateTransport() {
   // Between chunks speechSynthesis.speaking briefly goes false, so the queue
   // counts as active too — otherwise the controls flicker mid-paragraph.
   const active = SUPPORTED && (speechSynthesis.speaking || queuePending());
-  stopButton.disabled = !active;
-  pauseButton.disabled = !active;
-  pauseButton.textContent =
-    active && speechSynthesis.paused ? "Resume" : "Pause";
+  const label = active && speechSynthesis.paused ? "Resume" : "Pause";
+  stopButtons.forEach((button) => {
+    button.disabled = !active;
+  });
+  pauseButtons.forEach((button) => {
+    button.disabled = !active;
+    button.textContent = label;
+  });
 }
 
 let pendingSpeak = null;
@@ -201,6 +216,85 @@ function splitIntoChunks(text, maxChars) {
   return chunks.filter(Boolean);
 }
 
+// --- Word tracking --------------------------------------------------------
+// Set when reading from the textarea: the full text plus where each chunk
+// starts inside it, so a per-chunk boundary offset maps back to the whole.
+let tracking = null;
+
+function buildTracking(fullText, chunks) {
+  const offsets = [];
+  let cursor = 0;
+
+  chunks.forEach((chunk) => {
+    // Chunks are substrings of the original, so this locates them exactly.
+    // splitLongSentence collapses runs of whitespace, so a chunk can fail to
+    // match; fall back to the cursor rather than highlighting the wrong words.
+    const found = fullText.indexOf(chunk, cursor);
+    const start = found === -1 ? cursor : found;
+    offsets.push(start);
+    cursor = start + chunk.length;
+  });
+
+  return { full: fullText, offsets };
+}
+
+function wordEndFrom(text, start) {
+  const match = text.slice(start).match(/^\S+/);
+  return start + (match ? match[0].length : 1);
+}
+
+function renderReading(chunkStart, chunkEnd, wordStart, wordEnd) {
+  if (!tracking) return;
+  const { full } = tracking;
+
+  const chunkEl = document.createElement("span");
+  chunkEl.className = "chunk";
+  let focusEl = chunkEl;
+
+  if (wordStart == null) {
+    chunkEl.textContent = full.slice(chunkStart, chunkEnd);
+  } else {
+    const wordEl = document.createElement("mark");
+    wordEl.className = "word";
+    wordEl.textContent = full.slice(wordStart, wordEnd);
+    chunkEl.append(
+      document.createTextNode(full.slice(chunkStart, wordStart)),
+      wordEl,
+      document.createTextNode(full.slice(wordEnd, chunkEnd))
+    );
+    focusEl = wordEl;
+  }
+
+  readingEl.replaceChildren(
+    document.createTextNode(full.slice(0, chunkStart)),
+    chunkEl,
+    document.createTextNode(full.slice(chunkEnd))
+  );
+
+  // "nearest" only scrolls when the word has actually left the box.
+  focusEl.scrollIntoView({ block: "nearest", behavior: "auto" });
+}
+
+function enterReadingMode() {
+  textarea.hidden = true;
+  textLabel.hidden = true;
+  readButton.hidden = true;
+  readingEl.hidden = false;
+  readingLabel.hidden = false;
+  dialogTransport.hidden = false;
+}
+
+function exitReadingMode() {
+  tracking = null;
+  textarea.hidden = false;
+  textLabel.hidden = false;
+  readButton.hidden = false;
+  readingEl.hidden = true;
+  readingLabel.hidden = true;
+  dialogTransport.hidden = true;
+  readingEl.replaceChildren();
+}
+
 function speakingStatus() {
   return queue.length > 1
     ? `Speaking… (${queueIndex + 1} of ${queue.length})`
@@ -217,6 +311,7 @@ function stopSpeech(message) {
   // silently swallow whatever is spoken next.
   if (speechSynthesis.paused) speechSynthesis.resume();
   setStatus(message);
+  exitReadingMode();
   updateTransport();
 }
 
@@ -225,20 +320,41 @@ function speakChunk(run) {
 
   if (!queuePending()) {
     setStatus("");
+    exitReadingMode();
     updateTransport();
     return;
   }
 
-  const utterance = new SpeechSynthesisUtterance(queue[queueIndex]);
+  const index = queueIndex;
+  const chunkText = queue[index];
+  const utterance = new SpeechSynthesisUtterance(chunkText);
   utterance.voice = selectedVoice();
   utterance.rate = Number(rateInput.value);
   utterance.pitch = Number(pitchInput.value);
   utterance.volume = Number(volumeInput.value);
 
+  const chunkStart = tracking ? tracking.offsets[index] : null;
+  const chunkEnd = chunkStart == null ? null : chunkStart + chunkText.length;
+
   utterance.addEventListener("start", () => {
     if (run !== speechRun) return;
     setStatus(speakingStatus());
+    // Highlight the whole chunk up front, so engines without boundary events
+    // still show where the reading is.
+    if (chunkStart != null) renderReading(chunkStart, chunkEnd, null, null);
     updateTransport();
+  });
+
+  utterance.addEventListener("boundary", (e) => {
+    if (run !== speechRun || chunkStart == null) return;
+    // Some engines also emit sentence boundaries; only words matter here.
+    if (e.name && e.name !== "word") return;
+    const wordStart = chunkStart + e.charIndex;
+    if (wordStart >= chunkEnd) return;
+    const wordEnd = e.charLength
+      ? Math.min(wordStart + e.charLength, chunkEnd)
+      : Math.min(wordEndFrom(tracking.full, wordStart), chunkEnd);
+    renderReading(chunkStart, chunkEnd, wordStart, wordEnd);
   });
 
   utterance.addEventListener("end", () => {
@@ -261,7 +377,7 @@ function speakChunk(run) {
   speechSynthesis.speak(utterance);
 }
 
-function speak(text) {
+function speak(text, { track = false } = {}) {
   if (!SUPPORTED) return;
 
   const trimmed = text.trim();
@@ -278,6 +394,12 @@ function speak(text) {
   const run = speechRun;
   queue = splitIntoChunks(trimmed, chunkSize());
   queueIndex = 0;
+
+  if (track) {
+    tracking = buildTracking(trimmed, queue);
+    enterReadingMode();
+  }
+
   updateTransport();
 
   // Chrome drops utterances queued in the same tick as cancel(), so yield first.
@@ -322,24 +444,34 @@ dialog.addEventListener("click", (e) => {
 
 voicesSelect.addEventListener("change", saveSettings);
 
-readButton.addEventListener("click", () => speak(textarea.value));
+readButton.addEventListener("click", () => speak(textarea.value, { track: true }));
 
-pauseButton.addEventListener("click", () => {
+function togglePause() {
   // speechSynthesis.paused doesn't flip synchronously, so set the label from
   // the action we just took rather than re-reading the flag.
-  if (speechSynthesis.paused) {
+  const resuming = speechSynthesis.paused;
+  if (resuming) {
     speechSynthesis.resume();
-    setStatus("Speaking…");
-    pauseButton.textContent = "Pause";
+    setStatus(speakingStatus());
   } else {
     speechSynthesis.pause();
     setStatus("Paused.");
-    pauseButton.textContent = "Resume";
   }
-});
+  pauseButtons.forEach((button) => {
+    button.textContent = resuming ? "Pause" : "Resume";
+  });
+}
 
-stopButton.addEventListener("click", () => {
-  stopSpeech("Stopped.");
+pauseButtons.forEach((button) => button.addEventListener("click", togglePause));
+stopButtons.forEach((button) =>
+  button.addEventListener("click", () => stopSpeech("Stopped."))
+);
+
+// Abandon the reading view and go back to editing, without touching playback
+// if it has already finished.
+dialogEdit.addEventListener("click", () => {
+  stopSpeech("");
+  textarea.focus();
 });
 
 // --- Boot -----------------------------------------------------------------
@@ -351,9 +483,11 @@ if (SUPPORTED) {
   setInterval(updateTransport, 500);
 } else {
   unsupported.hidden = false;
-  [toggleButton, pauseButton, stopButton, readButton].forEach((button) => {
-    button.disabled = true;
-  });
+  [toggleButton, readButton, ...pauseButtons, ...stopButtons].forEach(
+    (button) => {
+      button.disabled = true;
+    }
+  );
   board.querySelectorAll(".box").forEach((box) => {
     box.disabled = true;
   });
