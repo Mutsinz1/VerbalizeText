@@ -4,6 +4,10 @@
 converts text into natural-sounding speech using the Web Speech API. Ideal for
 accessibility, presentations, or simply enjoying your written content aloud.
 
+### ▶️ [Try it live](https://mutsinz1.github.io/VerbalizeText/)
+
+No install, no sign-up — it runs entirely in your browser.
+
 ## 🚀 Features
 
 - **Phrase board**: Twelve one-tap cards for common everyday phrases.
@@ -25,6 +29,9 @@ accessibility, presentations, or simply enjoying your written content aloud.
 - **Works offline**: Images ship with the project — no external image host.
 
 ## 🛠️ How to Use
+
+The quickest way is the [live demo](https://mutsinz1.github.io/VerbalizeText/).
+To run it yourself:
 
 1. Clone the repository:
    ```bash
