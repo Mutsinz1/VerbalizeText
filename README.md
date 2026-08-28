@@ -7,6 +7,7 @@ accessibility, presentations, or simply enjoying your written content aloud.
 ### ▶️ [Try it live](https://mutsinz1.github.io/VerbalizeText/)
 
 No install, no sign-up — it runs entirely in your browser.
+Also deployed at [verbalizetext.fly.dev](https://verbalizetext.fly.dev/).
 
 ## 🚀 Features
 
@@ -105,6 +106,18 @@ phrases restored from browser storage. No framework and nothing to install.
 Phrase-card images are from Brad Traversy's
 [vanillawebprojects](https://github.com/bradtraversy/vanillawebprojects)
 speech-text-reader demo, vendored into `img/`.
+
+## 🚢 Deploying
+
+The site is static, so nginx just serves the files — there is nothing to build.
+
+```bash
+flyctl deploy
+```
+
+`Dockerfile` copies only what the browser needs; `test.js`, the README and the
+CI config are excluded via `.dockerignore`. The machines idle down to zero
+when nobody is using the site and wake on the next request.
 
 ## 🤝 Contributions
 
