@@ -1,1 +1,5 @@
 .DS_Store
+
+# macOS/iCloud duplicates files as "name 2.ext"; two stale copies were
+# committed by accident once already.
+* [0-9].*
